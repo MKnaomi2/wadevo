@@ -39,6 +39,19 @@ h1, h2 { font-family: var(--display); font-weight: 560; line-height: 1.04; lette
 
 ::selection { background: var(--coral); color: #fff; }
 
+/* Paper grain */
+.grain {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* Scroll reveals */
+[data-reveal] { opacity: 0; transform: translateY(26px); transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1); transition-delay: var(--d, 0s); }
+[data-reveal].in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 1; transform: none; transition: none; }
+}
+
 a:focus-visible, button:focus-visible {
   outline: 3px solid var(--coral);
   outline-offset: 4px;
@@ -119,7 +132,11 @@ a:focus-visible, button:focus-visible {
 .piece-no {
   font-family: var(--display); font-size: 1rem; color: var(--coral);
   margin: 0.45rem 0 0; font-weight: 560;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.piece:hover .piece-no { transform: translateX(6px); }
+.piece h2 { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.piece:hover h2 { transform: translateX(10px); }
 .piece h2 { font-size: clamp(2rem, 4.5vw, 3.25rem); margin-bottom: 0.5rem; }
 .piece-kind { color: var(--coral); font-size: 0.92rem; font-weight: 600; margin: 0 0 1.1rem; }
 .piece-body p:last-child { color: var(--muted); max-width: 62ch; margin: 0; font-size: 1.08rem; }
@@ -140,6 +157,7 @@ a:focus-visible, button:focus-visible {
   text-decoration-color: var(--coral); text-decoration-thickness: 3px; text-underline-offset: 8px;
 }
 .big-link:hover { color: var(--coral); }
+.big-link { will-change: transform; display: inline-block; }
 
 /* Colophon */
 .colophon { border-top: 1px solid var(--hairline); }
