@@ -1,9 +1,7 @@
-/* Wadevo Studios: orbital hero v2 — interactive system.
-   - Slow elliptical orbits with fading trails (coral body leads)
-   - Pointer gravity: bodies lean gently toward the cursor (fine pointers only)
-   - Drag horizontally to spin the whole system, with inertia
-   - Scroll parallax: the system drifts and settles as you leave the hero
-   - Pauses offscreen; single still frame under prefers-reduced-motion */
+/* Wadevo Studios: orbital hero v3 : Apple-style live scroll.
+   The hero is a sticky stage (260vh). Scroll progress scrubs the whole
+   orbital system: scroll down and it rotates, scroll back and it reverses.
+   Ambient drift, trails, pointer gravity, and drag-to-spin layer on top. */
 
 (function () {
   "use strict";
@@ -69,21 +67,26 @@
     });
   }
 
-  /* ---------- orbits ---------- */
+  /* ---------- orbits: scrubbed system ---------- */
   var canvas = document.getElementById("orbits");
   if (!canvas) return;
   var ctx = canvas.getContext("2d");
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var hero = document.querySelector(".hero");
+  var heroInner = document.querySelector(".hero-inner");
 
   var W = 0, H = 0;
   var running = true;
   var t0 = performance.now();
 
-  // parallax + drag state
-  var px = 0, py = 0, ptx = 0, pty = 0;   // pointer parallax (lerped)
-  var spin = 0, spinVel = 0;              // system rotation from drag
+  // scrub state: prog is raw scroll progress 0..1, progS is the lerped (buttery) version
+  var prog = 0, progS = 0;
+  var SCRUB_TURNS = 1.5;
+
+  // pointer parallax + drag state
+  var px = 0, py = 0, ptx = 0, pty = 0;
+  var spin = 0, spinVel = 0;
   var dragging = false, lastX = 0;
-  var scrollK = 0;                        // 0 at hero top → 1 when scrolled past
 
   var bodies = [
     { orbit: 0, size: 5.5, speed: 0.10, phase: 0.4, color: "#1b1512", alpha: 0.8, trail: 26 },
@@ -118,14 +121,11 @@
     return { rx: s * 1.35, ry: s * 0.62, rot: -0.32 };
   }
 
-  function bodyPos(bd, t, g) {
-    var rr = orbitRadii(bd.orbit, g.base);
-    var a = bd.phase + t * bd.speed + spin;
-    var ex = Math.cos(a) * rr.rx, ey = Math.sin(a) * rr.ry;
-    return {
-      x: ex * Math.cos(rr.rot) - ey * Math.sin(rr.rot),
-      y: ex * Math.sin(rr.rot) + ey * Math.cos(rr.rot)
-    };
+  function onScroll() {
+    if (!hero) return;
+    var r = hero.getBoundingClientRect();
+    var runway = Math.max(1, r.height - window.innerHeight);
+    prog = Math.min(1, Math.max(0, -r.top / runway));
   }
 
   function draw(now) {
@@ -133,24 +133,35 @@
     ctx.clearRect(0, 0, W, H);
     var g = geom();
 
+    // buttery scrub: ease toward raw scroll progress
+    progS += (prog - progS) * 0.085;
+    if (Math.abs(prog - progS) < 0.0004) progS = prog;
+
     px += (ptx - px) * 0.045;
     py += (pty - py) * 0.045;
-    if (!dragging) spinVel *= 0.96;
     spin += spinVel;
+    if (!dragging) spinVel *= 0.96;
 
-    // scroll: drift up and settle as the hero leaves
-    var sy = scrollK * H * 0.22;
-    var ss = 1 - scrollK * 0.12;
+    // total system rotation: scrubbed scroll + drag inertia
+    var systemRot = progS * Math.PI * 2 * SCRUB_TURNS + spin;
+
+    // headline yields to the system as you scrub
+    if (heroInner && !reduceMotion) {
+      var fade = Math.min(1, progS * 1.5);
+      heroInner.style.opacity = String(1 - fade);
+      heroInner.style.transform = "translateY(" + (-progS * 90).toFixed(1) + "px)";
+    }
+
+    var ss = 1 - progS * 0.08;
 
     ctx.save();
-    ctx.translate(g.cx + px * 16, g.cy + py * 12 - sy);
+    ctx.translate(g.cx + px * 16, g.cy + py * 12);
     ctx.scale(ss, ss);
 
-    // orbit paths
     for (var i = 0; i < 4; i++) {
       var r = orbitRadii(i, g.base);
       ctx.save();
-      ctx.rotate(r.rot);
+      ctx.rotate(r.rot + systemRot * 0.12);
       ctx.beginPath();
       ctx.ellipse(0, 0, r.rx, r.ry, 0, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(27,21,18," + (0.11 * g.dim) + ")";
@@ -159,30 +170,29 @@
       ctx.restore();
     }
 
-    // pointer gravity in system space
     var gx = 0, gy = 0;
-    if (fine && !reduceMotion) {
-      gx = px * 60; gy = py * 44;
-    }
+    if (fine && !reduceMotion) { gx = px * 60; gy = py * 44; }
 
-    // bodies + trails
     for (var k = 0; k < bodies.length; k++) {
       var bd = bodies[k];
-      var p = bodyPos(bd, t, g);
+      var rr = orbitRadii(bd.orbit, g.base);
+      var a = bd.phase + t * bd.speed + systemRot;
+      var ex = Math.cos(a) * rr.rx, ey = Math.sin(a) * rr.ry;
+      var rot = rr.rot + systemRot * 0.12;
+      var lx = ex * Math.cos(rot) - ey * Math.sin(rot);
+      var ly = ex * Math.sin(rot) + ey * Math.cos(rot);
 
-      // gentle pull toward pointer
       if (gx || gy) {
-        var dx = gx - p.x, dy = gy - p.y;
+        var dx = gx - lx, dy = gy - ly;
         var d = Math.sqrt(dx * dx + dy * dy) || 1;
         var pull = Math.max(0, 1 - d / (g.base * 0.55)) * 26;
-        p.x += (dx / d) * pull;
-        p.y += (dy / d) * pull;
+        lx += (dx / d) * pull;
+        ly += (dy / d) * pull;
       }
 
-      bd.hist.push({ x: p.x, y: p.y });
+      bd.hist.push({ x: lx, y: ly });
       if (bd.hist.length > bd.trail) bd.hist.shift();
 
-      // trail
       if (bd.hist.length > 2 && !reduceMotion) {
         ctx.beginPath();
         ctx.moveTo(bd.hist[0].x, bd.hist[0].y);
@@ -196,7 +206,7 @@
       }
 
       ctx.beginPath();
-      ctx.arc(p.x, p.y, bd.size, 0, Math.PI * 2);
+      ctx.arc(lx, ly, bd.size, 0, Math.PI * 2);
       ctx.fillStyle = bd.color;
       ctx.globalAlpha = bd.alpha * g.dim;
       ctx.fill();
@@ -207,12 +217,6 @@
     if (running && !reduceMotion) requestAnimationFrame(draw);
   }
 
-  function onScroll() {
-    var hero = canvas.parentElement;
-    var r = hero.getBoundingClientRect();
-    scrollK = Math.min(1, Math.max(0, -r.top / (r.height * 0.9)));
-  }
-
   window.addEventListener("resize", function () { resize(); if (reduceMotion) draw(performance.now()); });
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("mousemove", function (e) {
@@ -220,7 +224,6 @@
     pty = (e.clientY / window.innerHeight - 0.5) * 2;
   }, { passive: true });
 
-  // drag to spin (mouse only, so touch scroll keeps working)
   canvas.parentElement.addEventListener("pointerdown", function (e) {
     if (e.pointerType !== "mouse") return;
     dragging = true; lastX = e.clientX;
@@ -230,7 +233,6 @@
     var dx = e.clientX - lastX;
     lastX = e.clientX;
     spinVel = dx * 0.0016;
-    spin += spinVel;
   });
   window.addEventListener("pointerup", function () { dragging = false; });
 
@@ -244,6 +246,6 @@
 
   resize();
   onScroll();
-  if (reduceMotion) draw(t0 + 6000);
+  if (reduceMotion) { progS = prog; draw(t0 + 6000); }
   else requestAnimationFrame(draw);
 })();
