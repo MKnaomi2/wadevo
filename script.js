@@ -1,4 +1,4 @@
-/* Wadevo Studios — orbital hero. A slow GYRE-like system: concentric
+/* Wadevo Studios: orbital hero. A slow GYRE-like system: concentric
    elliptical orbits, small bodies, one coral. Pauses offscreen and under
    prefers-reduced-motion. All controls here are real (menu, year). */
 
