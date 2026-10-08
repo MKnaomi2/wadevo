@@ -9,10 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,560;9..144,640&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
+  <div class="grain" aria-hidden="true"></div>
 
   <header class="masthead">
     <div class="wrap masthead-inner">
@@ -46,9 +47,9 @@
 
     <section class="manifesto" aria-label="Principles">
       <div class="wrap manifesto-inner">
-        <p><strong>No dark patterns.</strong> Ever. If a design needs a trick to keep you, it failed.</p>
-        <p><strong>Privacy by architecture.</strong> On-device first, so your data stays yours.</p>
-        <p><strong>Mastery over monetization.</strong> Progress you earn, not progress you buy.</p>
+        <p data-reveal style="--d:0s"><strong>No dark patterns.</strong> Ever. If a design needs a trick to keep you, it failed.</p>
+        <p data-reveal style="--d:.12s"><strong>Privacy by architecture.</strong> On-device first, so your data stays yours.</p>
+        <p data-reveal style="--d:.24s"><strong>Mastery over monetization.</strong> Progress you earn, not progress you buy.</p>
       </div>
     </section>
 
@@ -56,7 +57,7 @@
       <div class="wrap">
         <p class="kicker">Selected work</p>
 
-        <article class="piece">
+        <article class="piece" data-reveal style="--d:0s">
           <p class="piece-no" aria-hidden="true">01</p>
           <div class="piece-body">
             <h2>GYRE</h2>
@@ -65,7 +66,7 @@
           </div>
         </article>
 
-        <article class="piece">
+        <article class="piece" data-reveal style="--d:.1s">
           <p class="piece-no" aria-hidden="true">02</p>
           <div class="piece-body">
             <h2>Wadevo Finance</h2>
@@ -74,7 +75,7 @@
           </div>
         </article>
 
-        <article class="piece">
+        <article class="piece" data-reveal style="--d:.2s">
           <p class="piece-no" aria-hidden="true">03</p>
           <div class="piece-body">
             <h2>Plant ID</h2>
@@ -88,7 +89,7 @@
     <section class="studio" id="about" aria-label="About the studio">
       <div class="wrap narrow">
         <p class="kicker">The studio</p>
-        <h2>Small by choice.</h2>
+        <h2 data-reveal>Small by choice.</h2>
         <p>Founded in 2026, Wadevo Studios is the software arm of Tamarack Hills LLC. We work in Pittsburgh, Pennsylvania, building the kind of software we want to exist: considered, honest, and built to last.</p>
         <p class="fineprint">Wadevo is a registered fictitious name of Tamarack Hills LLC in the Commonwealth of Pennsylvania.</p>
       </div>
@@ -97,9 +98,9 @@
     <section class="contact" id="contact" aria-label="Contact">
       <div class="wrap narrow">
         <p class="kicker">Contact</p>
-        <h2>Start with an email.</h2>
-        <p>We read everything.</p>
-        <a class="big-link" href="mailto:Aj@tamarackhillsllc.com">Aj@tamarackhillsllc.com</a>
+        <h2 data-reveal>Start with an email.</h2>
+        <p data-reveal style="--d:.1s">We read everything.</p>
+        <a data-reveal style="--d:.2s" class="big-link" href="mailto:Aj@tamarackhillsllc.com">Aj@tamarackhillsllc.com</a>
       </div>
     </section>
   </main>
@@ -111,6 +112,6 @@
     </div>
   </footer>
 
-  <script src="script.js?v=2"></script>
+  <script src="script.js?v=3"></script>
 </body>
 </html>
