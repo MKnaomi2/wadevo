@@ -81,7 +81,7 @@
 
   // scrub state: prog is raw scroll progress 0..1, progS is the lerped (buttery) version
   var prog = 0, progS = 0;
-  var SCRUB_TURNS = 1.5;
+  var SCRUB_TURNS = 1.0;
 
   // pointer parallax + drag state
   var px = 0, py = 0, ptx = 0, pty = 0;
@@ -152,7 +152,7 @@
       heroInner.style.transform = "translateY(" + (-progS * 90).toFixed(1) + "px)";
     }
 
-    var ss = 1 - progS * 0.08;
+    var ss = 1 - progS * 0.14;
 
     ctx.save();
     ctx.translate(g.cx + px * 16, g.cy + py * 12);
