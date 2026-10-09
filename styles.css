@@ -79,6 +79,10 @@ a:focus-visible, button:focus-visible {
   color: var(--ink); text-decoration: none; letter-spacing: -0.01em;
 }
 .wordmark-mark { width: 30px; height: 30px; color: var(--coral); }
+.wordmark-sub {
+  font-size: 0.78em; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-left: 0.45rem; align-self: center;
+}
 
 .menu-btn {
   display: none;
