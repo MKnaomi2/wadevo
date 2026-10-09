@@ -1,4 +1,4 @@
-/* Wadevo Studios: orbital hero v3 : Apple-style live scroll.
+/* Wadevo: orbital hero v3 : Apple-style live scroll.
    The hero is a sticky stage (260vh). Scroll progress scrubs the whole
    orbital system: scroll down and it rotates, scroll back and it reverses.
    Ambient drift, trails, pointer gravity, and drag-to-spin layer on top. */
