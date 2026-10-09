@@ -67,35 +67,59 @@
     });
   }
 
-  /* ---------- orbits: scrubbed system ---------- */
+  /* ---------- orbits: cinematic system ---------- */
   var canvas = document.getElementById("orbits");
   if (!canvas) return;
   var ctx = canvas.getContext("2d");
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var hero = document.querySelector(".hero");
   var heroInner = document.querySelector(".hero-inner");
+  var heroFade = document.querySelector(".hero-fade");
+  var scrollHint = document.querySelector(".scroll-hint");
+  var labelGyre = document.getElementById("label-gyre");
+  var labelFinance = document.getElementById("label-finance");
+  var labelPlant = document.getElementById("label-plant");
 
   var W = 0, H = 0;
   var running = true;
   var t0 = performance.now();
 
-  // scrub state: prog is raw scroll progress 0..1, progS is the lerped (buttery) version
+  // scrub state: prog is raw scroll progress 0..1, progS is the lerped version
   var prog = 0, progS = 0;
-  var SCRUB_TURNS = 1.0;
 
   // pointer parallax + drag state
   var px = 0, py = 0, ptx = 0, pty = 0;
   var spin = 0, spinVel = 0;
   var dragging = false, lastX = 0;
 
-  var bodies = [
-    { orbit: 0, size: 5.5, speed: 0.10, phase: 0.4, color: "#1b1512", alpha: 0.8, trail: 26 },
-    { orbit: 1, size: 4, speed: -0.065, phase: 2.2, color: "#1b1512", alpha: 0.5, trail: 20 },
-    { orbit: 2, size: 7, speed: 0.045, phase: 4.0, color: "#d9481f", alpha: 1, trail: 46 },
-    { orbit: 3, size: 3.5, speed: -0.032, phase: 1.1, color: "#1b1512", alpha: 0.38, trail: 16 },
-    { orbit: 1, size: 3, speed: 0.085, phase: 5.1, color: "#c2431f", alpha: 0.85, trail: 24 }
+  // Product planets: the Wadevo system.
+  var planets = [
+    { orbit: 0, size: 15, color: "#f0784a", dark: "#8a2f12",
+      glow: "rgba(232,100,47,0.32)", ring: true,
+      phase: 0.9, speed: 0.050, label: labelGyre },
+    { orbit: 1, size: 11, color: "#e8c37a", dark: "#7a5a1e",
+      glow: "rgba(212,162,78,0.28)",
+      phase: 2.8, speed: -0.036, label: labelFinance },
+    { orbit: 2, size: 9, color: "#a9c795", dark: "#4a6b3a",
+      glow: "rgba(143,181,115,0.28)", moon: true,
+      phase: 4.7, speed: 0.028, label: labelPlant }
   ];
-  bodies.forEach(function (b) { b.hist = []; });
+
+  // Starfield: generated per resize, 3 parallax layers.
+  var stars = [];
+  function makeStars() {
+    stars = [];
+    var n = W < 700 ? 90 : 190;
+    for (var i = 0; i < n; i++) {
+      stars.push({
+        x: Math.random(), y: Math.random(),
+        r: Math.random() * 1.4 + 0.3,
+        layer: Math.floor(Math.random() * 3),
+        tw: Math.random() * Math.PI * 2,
+        ts: 0.6 + Math.random() * 1.8
+      });
+    }
+  }
 
   function resize() {
     var r = canvas.parentElement.getBoundingClientRect();
@@ -104,21 +128,21 @@
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    makeStars();
   }
 
   function geom() {
     var wide = W > 900;
     return {
-      cx: wide ? W * 0.74 : W * 0.5,
-      cy: H * 0.46,
-      dim: wide ? 1 : 0.5,
+      cx: wide ? W * 0.72 : W * 0.5,
+      cy: H * 0.48,
       base: Math.min(W, H)
     };
   }
 
   function orbitRadii(i, base) {
-    var s = [0.16, 0.26, 0.37, 0.48][i % 4] * base;
-    return { rx: s * 1.35, ry: s * 0.62, rot: -0.32 };
+    var s = [0.20, 0.32, 0.45][i % 3] * base;
+    return { rx: s * 1.38, ry: s * 0.60, rot: -0.30 };
   }
 
   function onScroll() {
@@ -128,12 +152,57 @@
     prog = Math.min(1, Math.max(0, -r.top / runway));
   }
 
+  function setLabel(el, on) {
+    if (!el) return;
+    if (on) el.classList.add("on");
+    else el.classList.remove("on");
+  }
+
+  function drawPlanet(p, x, y, t) {
+    // halo
+    var glowR = p.size * 3.4;
+    var gg = ctx.createRadialGradient(x, y, p.size * 0.4, x, y, glowR);
+    gg.addColorStop(0, p.glow);
+    gg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2); ctx.fill();
+
+    // ring behind the sphere (GYRE)
+    if (p.ring) {
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(-0.42);
+      ctx.beginPath(); ctx.ellipse(0, 0, p.size * 2.2, p.size * 0.72, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(251,246,238,0.32)"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, p.size * 2.2, p.size * 0.72, 0, 0.3, Math.PI - 0.3);
+      ctx.strokeStyle = "rgba(251,246,238,0.12)"; ctx.lineWidth = 5; ctx.stroke();
+      ctx.restore();
+    }
+
+    // sphere with lit limb
+    var sg = ctx.createRadialGradient(
+      x - p.size * 0.38, y - p.size * 0.38, p.size * 0.08, x, y, p.size * 1.05);
+    sg.addColorStop(0, p.color);
+    sg.addColorStop(0.55, p.color);
+    sg.addColorStop(1, p.dark);
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(x, y, p.size, 0, Math.PI * 2); ctx.fill();
+
+    // moon (Plant ID)
+    if (p.moon && !reduceMotion) {
+      var ma = t * 0.9 + 1.2;
+      var mx = x + Math.cos(ma) * p.size * 2.5;
+      var my = y + Math.sin(ma) * p.size * 2.5 * 0.55;
+      ctx.fillStyle = "#cfc2ab";
+      ctx.beginPath(); ctx.arc(mx, my, Math.max(2, p.size * 0.26), 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   function draw(now) {
     var t = (now - t0) / 1000;
     ctx.clearRect(0, 0, W, H);
     var g = geom();
 
-    // buttery scrub: ease toward raw scroll progress
+    // buttery scrub
     progS += (prog - progS) * 0.085;
     if (Math.abs(prog - progS) < 0.0004) progS = prog;
 
@@ -142,75 +211,111 @@
     spin += spinVel;
     if (!dragging) spinVel *= 0.96;
 
-    // total system rotation: scrubbed scroll + drag inertia
-    var systemRot = progS * Math.PI * 2 * SCRUB_TURNS + spin;
+    var systemRot = progS * Math.PI * 2 * 1.15 + spin;
+    // camera pushes in as you scroll: the journey into the system
+    var zoom = 1 + progS * 0.42;
 
-    // headline yields to the system as you scrub
-    if (heroInner && !reduceMotion) {
-      var fade = Math.min(1, progS * 1.5);
-      heroInner.style.opacity = String(1 - fade);
-      heroInner.style.transform = "translateY(" + (-progS * 90).toFixed(1) + "px)";
+    /* ----- phased UI ----- */
+    if (!reduceMotion) {
+      if (heroInner) {
+        var fade = Math.min(1, progS * 2.6);
+        heroInner.style.opacity = String(1 - fade);
+        heroInner.style.transform = "translateY(" + (-progS * 110).toFixed(1) + "px)";
+      }
+      if (scrollHint) scrollHint.style.opacity = String(Math.max(0, 1 - progS * 9));
+      // planet callouts: each owns a scroll chapter
+      setLabel(labelGyre, progS > 0.30 && progS < 0.55);
+      setLabel(labelFinance, progS > 0.55 && progS < 0.78);
+      setLabel(labelPlant, progS > 0.78 && progS < 0.94);
+      if (heroFade) {
+        var f = Math.max(0, (progS - 0.86) / 0.14);
+        heroFade.style.opacity = f.toFixed(3);
+      }
     }
 
-    var ss = 1 - progS * 0.14;
+    /* ----- space ----- */
+    // nebulae: huge, faint, slow-drifting color fields
+    var nebulae = [
+      { x: 0.22, y: 0.30, r: 0.55, c: "rgba(194,67,31,0.10)" },
+      { x: 0.80, y: 0.72, r: 0.60, c: "rgba(84,102,180,0.10)" },
+      { x: 0.62, y: 0.16, r: 0.42, c: "rgba(60,140,150,0.07)" }
+    ];
+    for (var ni = 0; ni < nebulae.length; ni++) {
+      var nb = nebulae[ni];
+      var nx = (nb.x + Math.sin(t * 0.05 + ni * 2.1) * 0.02) * W;
+      var ny = (nb.y + Math.cos(t * 0.04 + ni * 1.7) * 0.02) * H;
+      var nr = nb.r * Math.max(W, H);
+      var ng = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+      ng.addColorStop(0, nb.c);
+      ng.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = ng;
+      ctx.fillRect(0, 0, W, H);
+    }
 
+    // starfield with parallax against pointer + scroll drift
+    for (var si = 0; si < stars.length; si++) {
+      var s = stars[si];
+      var depth = [0.25, 0.55, 1][s.layer];
+      var sx = s.x * W + px * 22 * depth + progS * 30 * depth;
+      var sy = s.y * H + py * 16 * depth;
+      // wrap
+      sx = ((sx % W) + W) % W;
+      sy = ((sy % H) + H) % H;
+      var tw = reduceMotion ? 0.8 : 0.55 + 0.45 * Math.sin(t * s.ts + s.tw);
+      ctx.globalAlpha = (0.25 + 0.55 * depth) * tw;
+      ctx.fillStyle = "#f5efe2";
+      ctx.beginPath(); ctx.arc(sx, sy, s.r * (0.7 + 0.5 * depth), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    /* ----- the system ----- */
     ctx.save();
-    ctx.translate(g.cx + px * 16, g.cy + py * 12);
-    ctx.scale(ss, ss);
+    ctx.translate(g.cx + px * 14, g.cy + py * 10);
+    ctx.scale(zoom, zoom);
 
-    for (var i = 0; i < 4; i++) {
-      var r = orbitRadii(i, g.base);
+    // orbit paths
+    for (var i = 0; i < 3; i++) {
+      var rr = orbitRadii(i, g.base);
       ctx.save();
-      ctx.rotate(r.rot + systemRot * 0.12);
+      ctx.rotate(rr.rot + systemRot * 0.10);
       ctx.beginPath();
-      ctx.ellipse(0, 0, r.rx, r.ry, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(27,21,18," + (0.11 * g.dim) + ")";
+      ctx.ellipse(0, 0, rr.rx, rr.ry, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(251,246,238,0.10)";
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.restore();
     }
 
-    var gx = 0, gy = 0;
-    if (fine && !reduceMotion) { gx = px * 60; gy = py * 44; }
+    // central sun: the Wadevo core
+    var sunR = Math.max(10, g.base * 0.028);
+    var sunGlow = ctx.createRadialGradient(0, 0, sunR * 0.3, 0, 0, sunR * 6);
+    sunGlow.addColorStop(0, "rgba(232,100,47,0.55)");
+    sunGlow.addColorStop(0.4, "rgba(232,100,47,0.18)");
+    sunGlow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sunGlow;
+    ctx.beginPath(); ctx.arc(0, 0, sunR * 6, 0, Math.PI * 2); ctx.fill();
+    var coreG = ctx.createRadialGradient(-sunR * 0.3, -sunR * 0.3, sunR * 0.1, 0, 0, sunR);
+    coreG.addColorStop(0, "#ffd9a8");
+    coreG.addColorStop(0.6, "#e8642f");
+    coreG.addColorStop(1, "#8a2f12");
+    ctx.fillStyle = coreG;
+    ctx.beginPath(); ctx.arc(0, 0, sunR, 0, Math.PI * 2); ctx.fill();
+    // orbit glyph ring around the sun (the wordmark mark, writ large)
+    ctx.beginPath(); ctx.arc(0, 0, sunR * 2.1, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(251,246,238,0.22)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "#e8642f";
+    ctx.beginPath(); ctx.arc(sunR * 2.1 * Math.cos(-0.7), sunR * 2.1 * Math.sin(-0.7), sunR * 0.32, 0, Math.PI * 2); ctx.fill();
 
-    for (var k = 0; k < bodies.length; k++) {
-      var bd = bodies[k];
-      var rr = orbitRadii(bd.orbit, g.base);
-      var a = bd.phase + t * bd.speed + systemRot;
-      var ex = Math.cos(a) * rr.rx, ey = Math.sin(a) * rr.ry;
-      var rot = rr.rot + systemRot * 0.12;
+    // planets
+    for (var k = 0; k < planets.length; k++) {
+      var p = planets[k];
+      var pr = orbitRadii(p.orbit, g.base);
+      var a = p.phase + (reduceMotion ? 0 : t * p.speed) + systemRot;
+      var ex = Math.cos(a) * pr.rx, ey = Math.sin(a) * pr.ry;
+      var rot = pr.rot + systemRot * 0.10;
       var lx = ex * Math.cos(rot) - ey * Math.sin(rot);
       var ly = ex * Math.sin(rot) + ey * Math.cos(rot);
-
-      if (gx || gy) {
-        var dx = gx - lx, dy = gy - ly;
-        var d = Math.sqrt(dx * dx + dy * dy) || 1;
-        var pull = Math.max(0, 1 - d / (g.base * 0.55)) * 26;
-        lx += (dx / d) * pull;
-        ly += (dy / d) * pull;
-      }
-
-      bd.hist.push({ x: lx, y: ly });
-      if (bd.hist.length > bd.trail) bd.hist.shift();
-
-      if (bd.hist.length > 2 && !reduceMotion) {
-        ctx.beginPath();
-        ctx.moveTo(bd.hist[0].x, bd.hist[0].y);
-        for (var h = 1; h < bd.hist.length; h++) ctx.lineTo(bd.hist[h].x, bd.hist[h].y);
-        ctx.strokeStyle = bd.color;
-        ctx.globalAlpha = bd.alpha * 0.28 * g.dim;
-        ctx.lineWidth = bd.size * 0.7;
-        ctx.lineCap = "round";
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-
-      ctx.beginPath();
-      ctx.arc(lx, ly, bd.size, 0, Math.PI * 2);
-      ctx.fillStyle = bd.color;
-      ctx.globalAlpha = bd.alpha * g.dim;
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      drawPlanet(p, lx, ly, t);
     }
     ctx.restore();
 
