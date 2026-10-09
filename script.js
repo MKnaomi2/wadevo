@@ -201,6 +201,87 @@
   // pre-render surfaces once (not per frame)
   planets.forEach(function (p) { p.tex = makePlanetTexture(p); });
 
+  /* ----- flowing currents: river-like particle streams ----- */
+  var currents = [];
+  var N_CURRENTS = 0;
+  var scrollVel = 0, lastProg = 0;
+
+  function initCurrents() {
+    N_CURRENTS = W < 700 ? 70 : 140;
+    currents = [];
+    for (var i = 0; i < N_CURRENTS; i++) currents.push(newCurrent(true));
+  }
+  function newCurrent(scatter) {
+    // spawn near the sun, in one of 8 river channels for coherent streams
+    var channel = Math.floor(Math.random() * 8);
+    var a = (channel / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+    var r0 = 14 + Math.random() * 30;
+    var life = 1;
+    if (scatter) life = Math.random();
+    return {
+      a: a,
+      r: r0 + (1 - life) * 0, // radius grows as it flows
+      life: life,
+      maxR: 0, // set per-frame from geometry
+      speed: 0.30 + Math.random() * 0.55,
+      size: 1.1 + Math.random() * 2.6,
+      hue: Math.random(),
+      wob: Math.random() * Math.PI * 2,
+      wobSpeed: 0.6 + Math.random() * 1.4
+    };
+  }
+  function currentColor(h) {
+    // coral -> gold -> amber river palette
+    if (h < 0.45) return "232,100,47";
+    if (h < 0.75) return "212,162,78";
+    return "240,200,130";
+  }
+
+  function drawCurrents(t, g, systemRot, zoom) {
+    // track scroll velocity for flow energy
+    scrollVel += ((prog - lastProg) * 60 - scrollVel) * 0.12;
+    lastProg = prog;
+    var energy = Math.min(3, 1 + Math.abs(scrollVel) * 22);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (var i = 0; i < currents.length; i++) {
+      var c = currents[i];
+      if (c.maxR === 0) c.maxR = g.base * 0.62 * zoom;
+      // advance life; flow speed scales with scroll energy
+      c.life += 0.0035 * c.speed * energy * (reduceMotion ? 0 : 1);
+      if (c.life >= 1) {
+        currents[i] = newCurrent(false);
+        continue;
+      }
+      // radius: ease-out from sun to maxR
+      var rr = 18 + (c.maxR - 18) * (1 - Math.pow(1 - c.life, 2.2));
+      // angle: slow swirl + wobble, energized by scroll
+      var aa = c.a + systemRot * 0.35 + t * 0.05 * c.speed
+        + Math.sin(t * c.wobSpeed + c.wob) * 0.14 * energy;
+      var x = Math.cos(aa) * rr * 1.32;
+      var y = Math.sin(aa) * rr * 0.60;
+      // fade in/out along life
+      var fade = Math.sin(c.life * Math.PI);
+      var alpha = 0.52 * fade * Math.min(1.4, energy);
+      var sz = c.size * (0.6 + c.life * 0.9);
+      ctx.fillStyle = "rgba(" + currentColor(c.hue) + "," + alpha.toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.arc(x, y, sz, 0, Math.PI * 2);
+      ctx.fill();
+      // trailing streak: short line back along the flow direction
+      if (!reduceMotion && energy > 1.05) {
+        var tx = x - Math.cos(aa) * sz * 4 * energy;
+        var ty = y - Math.sin(aa) * sz * 4 * energy * 0.45;
+        ctx.strokeStyle = "rgba(" + currentColor(c.hue) + "," + (alpha * 0.5).toFixed(3) + ")";
+        ctx.lineWidth = sz * 0.7;
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // Starfield: generated per resize, 3 parallax layers.
   var stars = [];
   function makeStars() {
@@ -225,6 +306,7 @@
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     makeStars();
+    initCurrents();
   }
 
   function geom() {
@@ -468,6 +550,10 @@
       var ly = ex * Math.sin(rot) + ey * Math.cos(rot);
       drawPlanet(p, lx, ly, t);
     }
+
+    // flowing currents: river-like streams from the sun
+    if (!reduceMotion) drawCurrents(t, g, systemRot, zoom);
+
     ctx.restore();
 
     if (running && !reduceMotion) requestAnimationFrame(draw);
