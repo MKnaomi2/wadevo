@@ -228,9 +228,15 @@
       setLabel(labelFinance, progS > 0.55 && progS < 0.78);
       setLabel(labelPlant, progS > 0.78 && progS < 0.94);
       if (heroFade) {
-        var f = Math.max(0, (progS - 0.86) / 0.14);
+        // long, eased dissolve: starts at 68%, fully paper by 100%
+        var f = Math.max(0, (progS - 0.68) / 0.32);
+        f = f * f * (3 - 2 * f); // smoothstep: no abrupt start or end
         heroFade.style.opacity = f.toFixed(3);
       }
+      // the starfield itself dissolves as the dawn washes in
+      var cf = Math.max(0, (progS - 0.74) / 0.26);
+      cf = cf * cf * (3 - 2 * cf);
+      canvas.style.opacity = String((1 - cf * 0.94).toFixed(3));
     }
 
     /* ----- space ----- */
