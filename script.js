@@ -92,18 +92,114 @@
   var spin = 0, spinVel = 0;
   var dragging = false, lastX = 0;
 
-  // Product planets: the Wadevo system.
+  // Product planets: the Wadevo system. Each has a procedural surface.
   var planets = [
-    { orbit: 0, size: 15, color: "#f0784a", dark: "#8a2f12",
-      glow: "rgba(232,100,47,0.32)", ring: true,
+    { orbit: 0, size: 15, color: "#f0784a", dark: "#8a2f12", light: "#ffb287",
+      glow: "rgba(232,100,47,0.32)", ring: true, style: "bands", seed: 11,
       phase: 0.9, speed: 0.050, label: labelGyre },
-    { orbit: 1, size: 11, color: "#e8c37a", dark: "#7a5a1e",
-      glow: "rgba(212,162,78,0.28)",
+    { orbit: 1, size: 11, color: "#e8c37a", dark: "#7a5a1e", light: "#f7e2ae",
+      glow: "rgba(212,162,78,0.28)", style: "mottle", seed: 47,
       phase: 2.8, speed: -0.036, label: labelFinance },
-    { orbit: 2, size: 9, color: "#a9c795", dark: "#4a6b3a",
-      glow: "rgba(143,181,115,0.28)", moon: true,
+    { orbit: 2, size: 9, color: "#a9c795", dark: "#4a6b3a", light: "#d6e8c4",
+      land: "#8a6f4d", glow: "rgba(143,181,115,0.28)", moon: true,
+      style: "continents", seed: 83,
       phase: 4.7, speed: 0.028, label: labelPlant }
   ];
+
+  /* ----- procedural planet surfaces ----- */
+  function makeNoise2D(seed) {
+    var perm = new Array(256);
+    for (var i = 0; i < 256; i++) perm[i] = i;
+    var s = seed * 16807 % 2147483647;
+    function rnd() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+    for (var k = 255; k > 0; k--) {
+      var j = Math.floor(rnd() * (k + 1));
+      var tmp = perm[k]; perm[k] = perm[j]; perm[j] = tmp;
+    }
+    var p = perm.concat(perm);
+    function fade(t) { return t * t * (3 - 2 * t); }
+    function grad2(h, x, y) {
+      switch (h & 3) {
+        case 0: return x + y; case 1: return -x + y;
+        case 2: return x - y; default: return -x - y;
+      }
+    }
+    return function (x, y) {
+      var xi = Math.floor(x) & 255, yi = Math.floor(y) & 255;
+      var xf = x - Math.floor(x), yf = y - Math.floor(y);
+      var u = fade(xf), v = fade(yf);
+      var aa = grad2(p[p[xi] + yi], xf, yf);
+      var ab = grad2(p[p[xi] + yi + 1], xf, yf - 1);
+      var ba = grad2(p[p[xi + 1] + yi], xf - 1, yf);
+      var bb = grad2(p[p[xi + 1] + yi + 1], xf - 1, yf - 1);
+      return (aa * (1 - u) + ba * u) * (1 - v) + (ab * (1 - u) + bb * u) * v;
+    };
+  }
+
+  function hexRGB(h) {
+    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  }
+  function lerpC(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+
+  function makePlanetTexture(p) {
+    var S = 220;
+    var c = document.createElement("canvas");
+    c.width = c.height = S;
+    var cx2d = c.getContext("2d");
+    var noise = makeNoise2D(p.seed);
+    var cBase = hexRGB(p.color), cDark = hexRGB(p.dark), cLight = hexRGB(p.light);
+    var cLand = p.land ? hexRGB(p.land) : cDark;
+    var img = cx2d.createImageData(S, S);
+    var d = img.data;
+    for (var j = 0; j < S; j++) {
+      for (var i = 0; i < S; i++) {
+        var nx = i / S, ny = j / S;
+        var dx = (nx - 0.5) * 2, dy = (ny - 0.5) * 2;
+        var r = Math.sqrt(dx * dx + dy * dy);
+        if (r > 1) continue;
+        // fractal noise: 4 octaves
+        var n = 0, amp = 1, freq = 5, tot = 0;
+        for (var o = 0; o < 4; o++) {
+          n += noise(nx * freq + p.seed, ny * freq) * amp;
+          tot += amp; amp *= 0.5; freq *= 2.15;
+        }
+        n /= tot; // ~ -1..1
+        var tn = n * 0.5 + 0.5; // 0..1
+        var col;
+        if (p.style === "bands") {
+          // gas giant: swirling horizontal bands
+          var band = Math.sin(ny * 16 + n * 5.2 + Math.sin(nx * 6 + n * 3) * 1.4) * 0.5 + 0.5;
+          var t = band * 0.62 + tn * 0.38;
+          col = lerpC(cDark, cLight, Math.pow(t, 1.25));
+          // storm spot
+          var sx = nx - 0.68, sy = ny - 0.38;
+          if (Math.sqrt(sx * sx * 4 + sy * sy * 9) < 0.16) col = lerpC(col, cLight, 0.55);
+        } else if (p.style === "mottle") {
+          // metallic rock: fine mottling
+          var t2 = Math.pow(tn, 1.4);
+          col = lerpC(cDark, cLight, t2);
+        } else { // continents
+          if (tn > 0.54) col = lerpC(cLand, cLight, Math.min(1, (tn - 0.54) * 3.2));
+          else col = lerpC(cDark, cBase, tn * 1.55);
+        }
+        // spherical limb darkening baked in
+        var shade = Math.sqrt(Math.max(0, 1 - r * r));
+        var sh = 0.52 + 0.48 * shade;
+        var idx = (j * S + i) * 4;
+        d[idx] = Math.min(255, col[0] * sh);
+        d[idx + 1] = Math.min(255, col[1] * sh);
+        d[idx + 2] = Math.min(255, col[2] * sh);
+        d[idx + 3] = 255;
+      }
+    }
+    cx2d.putImageData(img, 0, 0);
+    return c;
+  }
+
+  // pre-render surfaces once (not per frame)
+  planets.forEach(function (p) { p.tex = makePlanetTexture(p); });
 
   // Starfield: generated per resize, 3 parallax layers.
   var stars = [];
@@ -159,41 +255,90 @@
   }
 
   function drawPlanet(p, x, y, t) {
+    var R = p.size;
+
     // halo
-    var glowR = p.size * 3.4;
-    var gg = ctx.createRadialGradient(x, y, p.size * 0.4, x, y, glowR);
+    var glowR = R * 3.4;
+    var gg = ctx.createRadialGradient(x, y, R * 0.4, x, y, glowR);
     gg.addColorStop(0, p.glow);
     gg.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gg;
     ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2); ctx.fill();
 
-    // ring behind the sphere (GYRE)
+    // ring behind the sphere (GYRE): layered bands with varying opacity
     if (p.ring) {
       ctx.save();
       ctx.translate(x, y); ctx.rotate(-0.42);
-      ctx.beginPath(); ctx.ellipse(0, 0, p.size * 2.2, p.size * 0.72, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(251,246,238,0.32)"; ctx.lineWidth = 2; ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(0, 0, p.size * 2.2, p.size * 0.72, 0, 0.3, Math.PI - 0.3);
-      ctx.strokeStyle = "rgba(251,246,238,0.12)"; ctx.lineWidth = 5; ctx.stroke();
+      var bands = [
+        { rx: 2.35, op: 0.10, w: 7 }, { rx: 2.05, op: 0.30, w: 2.5 },
+        { rx: 1.78, op: 0.14, w: 5 }, { rx: 1.55, op: 0.36, w: 2 }
+      ];
+      for (var bi = 0; bi < bands.length; bi++) {
+        var b = bands[bi];
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * b.rx, R * b.rx * 0.32, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(251,246,238," + b.op + ")";
+        ctx.lineWidth = b.w;
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
-    // sphere with lit limb
-    var sg = ctx.createRadialGradient(
-      x - p.size * 0.38, y - p.size * 0.38, p.size * 0.08, x, y, p.size * 1.05);
-    sg.addColorStop(0, p.color);
-    sg.addColorStop(0.55, p.color);
-    sg.addColorStop(1, p.dark);
-    ctx.fillStyle = sg;
-    ctx.beginPath(); ctx.arc(x, y, p.size, 0, Math.PI * 2); ctx.fill();
+    // direction to the sun (system center) for lighting
+    var toSun = Math.atan2(-y, -x);
+    var sx = Math.cos(toSun), sy = Math.sin(toSun);
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
+
+    // textured surface with slow drift
+    var drift = reduceMotion ? 0 : Math.sin(t * 0.12 + p.phase) * R * 0.10;
+    ctx.drawImage(p.tex, x - R + drift, y - R, R * 2, R * 2);
+
+    // day/night terminator: night falls away from the sun
+    var tg = ctx.createLinearGradient(
+      x + sx * R, y + sy * R, x - sx * R, y - sy * R);
+    tg.addColorStop(0, "rgba(0,0,0,0)");
+    tg.addColorStop(0.52, "rgba(0,0,0,0)");
+    tg.addColorStop(0.82, "rgba(4,2,2,0.42)");
+    tg.addColorStop(1, "rgba(4,2,2,0.72)");
+    ctx.fillStyle = tg;
+    ctx.fillRect(x - R, y - R, R * 2, R * 2);
+
+    // sun glint: specular highlight on the lit limb
+    var gx = x + sx * R * 0.42, gy = y + sy * R * 0.42;
+    var spec = ctx.createRadialGradient(gx, gy, 0, gx, gy, R * 0.55);
+    spec.addColorStop(0, "rgba(255,242,224,0.38)");
+    spec.addColorStop(1, "rgba(255,242,224,0)");
+    ctx.fillStyle = spec;
+    ctx.fillRect(x - R, y - R, R * 2, R * 2);
+    ctx.restore();
+
+    // atmospheric rim: fresnel-style limb glow, biased to the lit side
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
+    var rim = ctx.createRadialGradient(x, y, R * 0.72, x, y, R * 1.02);
+    rim.addColorStop(0, "rgba(0,0,0,0)");
+    rim.addColorStop(0.82, "rgba(0,0,0,0)");
+    rim.addColorStop(1, p.glow.replace(/[\d.]+\)$/, "0.55)"));
+    ctx.fillStyle = rim;
+    ctx.fillRect(x - R, y - R, R * 2, R * 2);
+    ctx.restore();
+
+    // crisp limb
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(251,246,238,0.10)"; ctx.lineWidth = 1; ctx.stroke();
 
     // moon (Plant ID)
     if (p.moon && !reduceMotion) {
       var ma = t * 0.9 + 1.2;
-      var mx = x + Math.cos(ma) * p.size * 2.5;
-      var my = y + Math.sin(ma) * p.size * 2.5 * 0.55;
-      ctx.fillStyle = "#cfc2ab";
-      ctx.beginPath(); ctx.arc(mx, my, Math.max(2, p.size * 0.26), 0, Math.PI * 2); ctx.fill();
+      var mx = x + Math.cos(ma) * R * 2.5;
+      var my = y + Math.sin(ma) * R * 2.5 * 0.55;
+      var mg = ctx.createRadialGradient(mx - 1, my - 1, 0.5, mx, my, Math.max(2.5, R * 0.26));
+      mg.addColorStop(0, "#e8dcc2");
+      mg.addColorStop(1, "#8a7c62");
+      ctx.fillStyle = mg;
+      ctx.beginPath(); ctx.arc(mx, my, Math.max(2, R * 0.26), 0, Math.PI * 2); ctx.fill();
     }
   }
 
