@@ -1,0 +1,15 @@
+# .gitignore
+
+# --- Secret-file hardening (security audit 2026-10-27) ---
+# Credentials and environment files must never be committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.key
+*.p12
+*.mobileprovision
+*.keystore
+credentials.json
+service-account*.json
